@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+
+# aqui criamos 2 namespaces: ns1 & ns2
+ip netns add ns1
+ip netns add ns2
+
+
+# aqui criamos um par de veth: veth1 e veth2 - nomes bem criativos XD
+ip link add veth1 type veth peer name veth2
+
+
+# aqui jogamos capa veth em uma namespace, poderia estar ligando numa bridge tambem
+ip link set veth1 netns ns1
+ip link set veth2 netns ns2
+
+
+# aui, usamos ip netns exec [nome da ns] e em seguida colocamos o comando desejado
+# nesse caso, estamos setando um ip e em seguida tornando UP
+ip netns exec ns1 ip addr add 172.16.255.1/24 dev veth1
+ip netns exec ns1 ip link set veth1 up
+
+# igual o de cima, porem com a outra ns, veth e ip
+ip netns exec ns2 ip addr add 172.16.255.2/24 dev veth2
+ip netns exec ns2 ip link set veth2 up
+
+
+# e pra finalizar, executamos um ping dentro da ns1
+# poderia  criar uma bridge no lugar da ns1,
+# assim o ping seria dentro do proprio host
+ip netns exec ns1 ping -c 4 172.16.255.2
+
+# abra outro terminal e rode:
+ip netns exec ns2 tcpdump
+
+# no primeiro terminal de um ping novamente e vera' a magia acontece XD
