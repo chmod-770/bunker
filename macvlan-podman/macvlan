@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+net_name="homocinetica"
+br_name="br0"
+
+subnet="172.16.255.0/24"
+gateway="${subnet%0/24}254/24"
+
+
+# to subindo uma bridge pq interface wifi nao suporta multi macaddr
+if ! ip link show "${br_name}" >& /dev/null ; then
+	# ai to usando ela como switch
+	# pq nao da pra acessar a macv dentro do mesmo host
+	# e como tambem nao tem como acessar por fora, ficou por isso mesmo kkkkk
+	ip link add name "${br_name}" type bridge
+	ip link set "${br_name}" up
+fi
+
+
+# limpezinha de levis
+if podman network exists "${net_name}"; then
+	podman network rm -f "${net_name}" >& /dev/null
+fi
+
+
+# RESUMO:
+# -d 'e o driver, no caso macvlan
+# subnet, gateway 'e o da rede
+# --ip-range 'e pro dhcp dos cotainers
+# -o parent= 'e uma option q indica a interface real
+podman network create \
+	-d macvlan \
+	--subnet="${subnet}" \
+	--gateway="${gateway%/24}" \
+	--ip-range="${subnet%0/24}1/24" \
+	-o parent="${br_name}" \
+	${net_name}
+
+cont_name="itaquaquecetuta" 
+
+# limpezinha de levis2
+pod rm -f "${cont_name}" >& /dev/null
+pod rm -f "${cont_name}2" >& /dev/null
+
+
+#
+# aqui 'e uma execucao padrao, indicando a rede e o ip
+podman run -d --rm \
+	--name "${cont_name}"\
+	--network ${net_name} \
+	--ip "${subnet%0/24}1" \
+	localhost/centos10 "/lib/systemd/systemd" # na minha maquina funciona
+
+podman run -d --rm \
+	--name "${cont_name}2"\
+	--network ${net_name} \
+	--ip "${subnet%0/24}2" \
+	localhost/centos10 "/lib/systemd/systemd" # na minha maquina funciona
+
+# resultado final: consegui fazer os 2 cont se comunicarem, 
+# e com o comando 'ip neighbor' consegui ver os macs virtuais
+# 'e teoricamente simples, porem prciso de um hardware diferente pra entender melhor
